@@ -158,3 +158,12 @@ button:hover {
 .chart-controls {
   margin-bottom: 10px;
 }
+.race.sprint {
+  border: 1px solid #800080;
+  background: #2a2a2a;
+}
+
+.driver-tile.sprint-tile {
+  background: rgba(128,0,128,0.15);
+}
+
