@@ -130,12 +130,11 @@ document.getElementById("positionSelect").addEventListener("change", e => {
 document.getElementById("polePoints").addEventListener("input", updateAll);
 document.getElementById("flPoints").addEventListener("input", updateAll);
 
-// Rendering race + sprint results
 function renderResults(races) {
   const container = document.getElementById('results');
   container.innerHTML = races.map(r => {
     let sprintCard = "";
-    if (r.SprintResults && r.SprintResults.length) {
+    if (r.SprintResults && r.SprintResults.length > 0) {
       sprintCard = `
         <div class="race sprint">
           <h2>Sprint – ${r.raceName} <br><small>${r.date}</small></h2>
@@ -159,6 +158,7 @@ function renderResults(races) {
   }).join('');
 }
 
+
 function renderTile(res, race, isSprint) {
   const teamColor = teamColors[res.Constructor.name] || teamColors.default;
   const pos = parseInt(res.position);
@@ -166,9 +166,12 @@ function renderTile(res, race, isSprint) {
   const team = res.Constructor.name;
 
   let earned = isSprint ? (customSprintMap[pos] || 0) : (customPointsMap[pos] || 0);
+
   if (!isSprint) {
     if (res.FastestLap) earned += parseInt(document.getElementById("flPoints").value) || 0;
-    if (race.Qualifying && race.Qualifying.find(q => q.position === "1" && `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
+    if (race.Qualifying && race.Qualifying.find(q =>
+        q.position === "1" &&
+        `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
       earned += parseInt(document.getElementById("polePoints").value) || 0;
     }
   }
@@ -183,7 +186,7 @@ function renderTile(res, race, isSprint) {
   `;
 }
 
-// Standings
+
 function recalculateStandings() {
   const driverPointsCustom = {};
   const driverPointsOfficial = {};

@@ -159,11 +159,12 @@ button:hover {
   margin-bottom: 10px;
 }
 .race.sprint {
-  border: 1px solid #800080;
-  background: #2a2a2a;
+  border: 2px solid #800080;
+  background-color: #2b2b2b;
 }
 
 .driver-tile.sprint-tile {
   background: rgba(128,0,128,0.15);
 }
+
 
