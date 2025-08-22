@@ -50,6 +50,7 @@ async function fetchAllResults(year) {
     offset += limit;
   }
 
+  // Attach qualifying
   for (const race of Object.values(racesByRound)) {
     try {
       const qRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/${race.round}/qualifying.json`);
@@ -63,6 +64,19 @@ async function fetchAllResults(year) {
   return Object.values(racesByRound).sort((a,b)=>parseInt(a.round)-parseInt(b.round));
 }
 
+// ✅ NEW: Fetch official FIA standings from API
+async function fetchOfficialStandings(year) {
+  const driverRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/driverStandings.json`);
+  const driverData = await driverRes.json();
+  const driverStandings = driverData.MRData.StandingsTable.StandingsLists[0]?.DriverStandings || [];
+
+  const teamRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/constructorStandings.json`);
+  const teamData = await teamRes.json();
+  const teamStandings = teamData.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings || [];
+
+  return { driverStandings, teamStandings };
+}
+
 async function loadSeason(year) {
   document.getElementById('results').innerHTML = "<p>Loading...</p>";
   try {
@@ -70,6 +84,11 @@ async function loadSeason(year) {
     maxPosition = Math.max(...allRaces.map(r => r.Results.length));
     populatePositionSelector();
     renderResults(allRaces);
+
+    // fetch & render official standings from API
+    const { driverStandings, teamStandings } = await fetchOfficialStandings(year);
+    renderOfficialStandings(driverStandings, teamStandings);
+
     updateAll(); 
   } catch (err) {
     document.getElementById('results').textContent = 'Error: ' + err.message;
@@ -136,11 +155,10 @@ function renderResults(races) {
   `).join('');
 }
 
-function recalculateStandings() {
-  const driverPointsCustom = {};
-  const driverPointsOfficial = {};
-  const teamPointsCustom = {};
-  const teamPointsOfficial = {};
+// ✅ Custom standings (still recalculated locally)
+function recalculateCustomStandings() {
+  const driverPoints = {};
+  const teamPoints = {};
 
   const polePts = parseInt(document.getElementById('polePoints').value) || 0;
   const flPts = parseInt(document.getElementById('flPoints').value) || 0;
@@ -158,21 +176,31 @@ function recalculateStandings() {
           `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
         earned += polePts;
       }
-      driverPointsCustom[driver] = (driverPointsCustom[driver]||0) + earned;
-      teamPointsCustom[team] = (teamPointsCustom[team]||0) + earned;
-
-      const offPts = officialPoints[pos] || 0;
-      driverPointsOfficial[driver] = (driverPointsOfficial[driver]||0) + offPts;
-      teamPointsOfficial[team] = (teamPointsOfficial[team]||0) + offPts;
+      driverPoints[driver] = (driverPoints[driver]||0) + earned;
+      teamPoints[team] = (teamPoints[team]||0) + earned;
     }
   }
 
-  renderStandingsTable('driverStandingsCustom', driverPointsCustom);
-  renderStandingsTable('driverStandingsOfficial', driverPointsOfficial);
-  renderStandingsTable('teamStandingsCustom', teamPointsCustom);
-  renderStandingsTable('teamStandingsOfficial', teamPointsOfficial);
+  renderStandingsTable('driverStandingsCustom', driverPoints);
+  renderStandingsTable('teamStandingsCustom', teamPoints);
 
-  return driverPointsCustom; 
+  return driverPoints; 
+}
+
+// ✅ Official standings rendering from API response
+function renderOfficialStandings(driverStandings, teamStandings) {
+  const driverObj = {};
+  driverStandings.forEach(d => {
+    const name = `${d.Driver.givenName} ${d.Driver.familyName}`;
+    driverObj[name] = parseInt(d.points);
+  });
+  renderStandingsTable('driverStandingsOfficial', driverObj);
+
+  const teamObj = {};
+  teamStandings.forEach(t => {
+    teamObj[t.Constructor.name] = parseInt(t.points);
+  });
+  renderStandingsTable('teamStandingsOfficial', teamObj);
 }
 
 function renderStandingsTable(id, pointsObj) {
@@ -204,7 +232,6 @@ function buildDriverProgression() {
     const race = races[i];
     for (const res of race.Results) {
       const driver = `${res.Driver.givenName} ${res.Driver.familyName}`;
-      const team = res.Constructor.name;
       if (!(driver in driverProgression)) {
         driverProgression[driver] = [];
         totals[driver] = 0;
@@ -253,21 +280,15 @@ function renderChart() {
     options: {
       plugins: { legend: { labels: { color: "white" } } },
       scales: {
-  x: {
-    ticks: { color: "white" },
-    grid: {
-      color: "rgba(255,255,255,0.2)",  
-      lineWidth: 1,
-      drawTicks: false
-    }
-  },
-  y: {
-    ticks: { color: "white" },
-    grid: {
-      color: "rgba(255,255,255,0.2)"  
-    }
-  }
-}
+        x: {
+          ticks: { color: "white" },
+          grid: { color: "rgba(255,255,255,0.2)", lineWidth: 1, drawTicks: false }
+        },
+        y: {
+          ticks: { color: "white" },
+          grid: { color: "rgba(255,255,255,0.2)" }
+        }
+      }
     }
   });
 
@@ -302,7 +323,7 @@ function resetFocus() {
 }
 
 function updateAll() {
-  recalculateStandings();
+  recalculateCustomStandings();
   try {
     buildDriverProgression();
     renderChart();
