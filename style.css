@@ -50,7 +50,7 @@ h1 {
 }
 
 .driver-tile {
-  width: 90%;
+  width: 99%;
   border-radius: 6px;
   padding: 4px 6px;
   margin-bottom: 4px;
@@ -88,7 +88,7 @@ h1 {
 }
 
 .standing-tile {
-  width: 90%;
+  width: 99%;
   border-radius: 6px;
   padding: 4px 6px;
   background: var(--bg-card);
@@ -158,14 +158,6 @@ button:hover {
 .chart-controls {
   margin-bottom: 10px;
 }
-.race.sprint {
-  border: 2px solid #800080;
-  background-color: #2b2b2b;
-}
-
-.driver-tile.sprint-tile {
-  background: rgba(128,0,128,0.15);
-}
 
 ::-webkit-scrollbar {
   width: 8px;
@@ -190,3 +182,4 @@ button:hover {
   scrollbar-width: thin;
   scrollbar-color: #800080 #242424;
 }
+
