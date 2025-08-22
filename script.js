@@ -24,6 +24,7 @@ for (let y = currentYear; y >= 1950; y--) {
 
 let allRaces = [];
 let customPointsMap = { ...officialPoints };
+let customSprintMap = {};
 let maxPosition = 20;
 let pointsChart;
 
@@ -50,7 +51,6 @@ async function fetchAllResults(year) {
     offset += limit;
   }
 
-  // Attach qualifying
   for (const race of Object.values(racesByRound)) {
     try {
       const qRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/${race.round}/qualifying.json`);
@@ -59,12 +59,18 @@ async function fetchAllResults(year) {
     } catch {
       race.Qualifying = [];
     }
+    try {
+      const sRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/${race.round}/sprint.json`);
+      const sData = await sRes.json();
+      race.SprintResults = sData.MRData.RaceTable.Races[0]?.SprintResults || [];
+    } catch {
+      race.SprintResults = [];
+    }
   }
 
   return Object.values(racesByRound).sort((a,b)=>parseInt(a.round)-parseInt(b.round));
 }
 
-// ✅ NEW: Fetch official FIA standings from API
 async function fetchOfficialStandings(year) {
   const driverRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/driverStandings.json`);
   const driverData = await driverRes.json();
@@ -85,7 +91,6 @@ async function loadSeason(year) {
     populatePositionSelector();
     renderResults(allRaces);
 
-    // fetch & render official standings from API
     const { driverStandings, teamStandings } = await fetchOfficialStandings(year);
     renderOfficialStandings(driverStandings, teamStandings);
 
@@ -105,19 +110,25 @@ function populatePositionSelector() {
     sel.appendChild(opt);
   }
   document.getElementById("positionPoints").value = customPointsMap[1] || "";
+  document.getElementById("sprintPoints").value = customSprintMap[1] || "";
 }
 
 document.getElementById("positionPoints").addEventListener("input", e => {
   const pos = document.getElementById("positionSelect").value;
-  const pts = parseInt(e.target.value) || 0;
-  customPointsMap[pos] = pts;
-  document.getElementById("pointsMessage").textContent =
-    `Points of Position P${pos} has been changed to ${pts}`;
+  customPointsMap[pos] = parseInt(e.target.value) || 0;
+  document.getElementById("pointsMessage").textContent = `Race points for P${pos} set to ${customPointsMap[pos]}`;
+  updateAll();
+});
+document.getElementById("sprintPoints").addEventListener("input", e => {
+  const pos = document.getElementById("positionSelect").value;
+  customSprintMap[pos] = parseInt(e.target.value) || 0;
+  document.getElementById("pointsMessage").textContent += `, Sprint points for P${pos} set to ${customSprintMap[pos]}`;
   updateAll();
 });
 document.getElementById("positionSelect").addEventListener("change", e => {
   const pos = e.target.value;
   document.getElementById("positionPoints").value = customPointsMap[pos] ?? "";
+  document.getElementById("sprintPoints").value = customSprintMap[pos] ?? "";
 });
 document.getElementById("polePoints").addEventListener("input", updateAll);
 document.getElementById("flPoints").addEventListener("input", updateAll);
@@ -128,66 +139,68 @@ function renderResults(races) {
     <div class="race">
       <h2>${r.raceName} <br><small>${r.date}</small></h2>
       <div class="driver-scroll">
-        ${r.Results.map(res => {
-          const teamColor = teamColors[res.Constructor.name] || teamColors.default;
-          const pos = parseInt(res.position);
-          const driver = `${res.Driver.givenName} ${res.Driver.familyName}`;
-          const team = res.Constructor.name;
-
-          let earned = customPointsMap[pos] || 0;
-          if (res.FastestLap) earned += parseInt(document.getElementById("flPoints").value) || 0;
-          if (r.Qualifying && r.Qualifying.find(q => q.position === "1" &&
-              `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
-            earned += parseInt(document.getElementById("polePoints").value) || 0;
-          }
-
-          return `
-            <div class="driver-tile" style="border-left: 5px solid ${teamColor}">
-              <div class="driver-pos">P${res.position}</div>
-              <div class="driver-name">${driver}</div>
-              <div class="driver-team">${team}</div>
-              <div class="driver-extra">${earned} pts</div>
-            </div>
-          `;
-        }).join('')}
+        ${r.Results.map(res => renderTile(res, r, false)).join('')}
+        ${r.SprintResults && r.SprintResults.length ? r.SprintResults.map(res => renderTile(res, r, true)).join('') : ''}
       </div>
     </div>
   `).join('');
 }
 
-// ✅ Custom standings (still recalculated locally)
+function renderTile(res, race, isSprint) {
+  const teamColor = teamColors[res.Constructor.name] || teamColors.default;
+  const pos = parseInt(res.position);
+  const driver = `${res.Driver.givenName} ${res.Driver.familyName}`;
+  const team = res.Constructor.name;
+
+  let earned = isSprint ? (customSprintMap[pos] || 0) : (customPointsMap[pos] || 0);
+  if (!isSprint) {
+    if (res.FastestLap) earned += parseInt(document.getElementById("flPoints").value) || 0;
+    if (race.Qualifying && race.Qualifying.find(q => q.position === "1" && `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
+      earned += parseInt(document.getElementById("polePoints").value) || 0;
+    }
+  }
+
+  return `
+    <div class="driver-tile" style="border-left: 5px solid ${teamColor}">
+      <div class="driver-pos">[${isSprint ? 'S' : 'R'}] P${res.position}</div>
+      <div class="driver-name">${driver}</div>
+      <div class="driver-team">${team}</div>
+      <div class="driver-extra">${earned} pts</div>
+    </div>
+  `;
+}
+
 function recalculateCustomStandings() {
   const driverPoints = {};
   const teamPoints = {};
-
   const polePts = parseInt(document.getElementById('polePoints').value) || 0;
   const flPts = parseInt(document.getElementById('flPoints').value) || 0;
 
   for (const race of allRaces) {
-    for (const res of race.Results) {
-      const pos = parseInt(res.position);
-      const driver = `${res.Driver.givenName} ${res.Driver.familyName}`;
-      const team = res.Constructor.name;
+    for (const res of race.Results) accumulate(res, race, false);
+    for (const res of race.SprintResults || []) accumulate(res, race, true);
+  }
 
-      let earned = customPointsMap[pos] || 0;
+  function accumulate(res, race, isSprint) {
+    const pos = parseInt(res.position);
+    const driver = `${res.Driver.givenName} ${res.Driver.familyName}`;
+    const team = res.Constructor.name;
+    let earned = isSprint ? (customSprintMap[pos] || 0) : (customPointsMap[pos] || 0);
+    if (!isSprint) {
       if (res.FastestLap) earned += flPts;
-      if (race.Qualifying && race.Qualifying.find(q =>
-          q.position === "1" &&
-          `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
+      if (race.Qualifying && race.Qualifying.find(q => q.position === "1" && `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
         earned += polePts;
       }
-      driverPoints[driver] = (driverPoints[driver]||0) + earned;
-      teamPoints[team] = (teamPoints[team]||0) + earned;
     }
+    driverPoints[driver] = (driverPoints[driver]||0) + earned;
+    teamPoints[team] = (teamPoints[team]||0) + earned;
   }
 
   renderStandingsTable('driverStandingsCustom', driverPoints);
   renderStandingsTable('teamStandingsCustom', teamPoints);
-
-  return driverPoints; 
+  return driverPoints;
 }
 
-// ✅ Official standings rendering from API response
 function renderOfficialStandings(driverStandings, teamStandings) {
   const driverObj = {};
   driverStandings.forEach(d => {
@@ -225,28 +238,25 @@ function renderStandingsTable(id, pointsObj) {
 let driverProgression = {};
 function buildDriverProgression() {
   driverProgression = {};
-  const races = allRaces;
   const totals = {};
-
-  for (let i=0;i<races.length;i++) {
-    const race = races[i];
-    for (const res of race.Results) {
+  for (const race of allRaces) {
+    [...race.Results, ...race.SprintResults || []].forEach(res => {
       const driver = `${res.Driver.givenName} ${res.Driver.familyName}`;
       if (!(driver in driverProgression)) {
         driverProgression[driver] = [];
         totals[driver] = 0;
       }
-      let earned = customPointsMap[parseInt(res.position)] || 0;
-      if (res.FastestLap) earned += parseInt(document.getElementById("flPoints").value) || 0;
-      if (race.Qualifying && race.Qualifying.find(q => q.position === "1" &&
-          `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
-        earned += parseInt(document.getElementById("polePoints").value) || 0;
+      const isSprint = race.SprintResults && race.SprintResults.includes(res);
+      let earned = isSprint ? (customSprintMap[parseInt(res.position)] || 0) : (customPointsMap[parseInt(res.position)] || 0);
+      if (!isSprint) {
+        if (res.FastestLap) earned += parseInt(document.getElementById("flPoints").value) || 0;
+        if (race.Qualifying && race.Qualifying.find(q => q.position === "1" && `${q.Driver.givenName} ${q.Driver.familyName}` === driver)) {
+          earned += parseInt(document.getElementById("polePoints").value) || 0;
+        }
       }
       totals[driver] += earned;
-    }
-    for (const d in driverProgression) {
-      driverProgression[d].push(totals[d] || 0);
-    }
+    });
+    Object.keys(driverProgression).forEach(d => driverProgression[d].push(totals[d] || 0));
   }
 }
 
@@ -257,40 +267,15 @@ function renderChart() {
   const datasets = Object.keys(driverProgression).map(driver => {
     let teamName = "default";
     for (const race of allRaces) {
-      const match = race.Results.find(r => `${r.Driver.givenName} ${r.Driver.familyName}` === driver);
+      const match = [...race.Results, ...(race.SprintResults || [])]
+        .find(r => `${r.Driver.givenName} ${r.Driver.familyName}` === driver);
       if (match) { teamName = match.Constructor.name; break; }
     }
     const color = teamColors[teamName] || teamColors.default;
-    return {
-      label: driver,
-      data: driverProgression[driver],
-      borderColor: color,
-      fill: false,
-      tension: 0.2,
-      borderWidth: 2
-    };
+    return { label: driver, data: driverProgression[driver], borderColor: color, fill: false, tension: 0.2, borderWidth: 2 };
   });
 
-  pointsChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: allRaces.map(r => r.raceName),
-      datasets
-    },
-    options: {
-      plugins: { legend: { labels: { color: "white" } } },
-      scales: {
-        x: {
-          ticks: { color: "white" },
-          grid: { color: "rgba(255,255,255,0.2)", lineWidth: 1, drawTicks: false }
-        },
-        y: {
-          ticks: { color: "white" },
-          grid: { color: "rgba(255,255,255,0.2)" }
-        }
-      }
-    }
-  });
+  pointsChart = new Chart(ctx, { type: "line", data: { labels: allRaces.map(r => r.raceName), datasets }, options: { plugins: { legend: { labels: { color: "white" } } }, scales: { x: { ticks: { color: "white" }, grid: { color: "rgba(255,255,255,0.2)", lineWidth: 1, drawTicks: false } }, y: { ticks: { color: "white" }, grid: { color: "rgba(255,255,255,0.2)" } } } } });
 
   updateDriverSelectors(Object.keys(driverProgression));
 }
@@ -300,8 +285,7 @@ function updateDriverSelectors(drivers) {
   const d2Sel = document.getElementById("driver2Select");
   d1Sel.innerHTML = ""; d2Sel.innerHTML = "";
   drivers.forEach(d => {
-    const opt1 = document.createElement("option");
-    opt1.value = d; opt1.textContent = d;
+    const opt1 = document.createElement("option"); opt1.value = d; opt1.textContent = d;
     const opt2 = opt1.cloneNode(true);
     d1Sel.appendChild(opt1); d2Sel.appendChild(opt2);
   });
