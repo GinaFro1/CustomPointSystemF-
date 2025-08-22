@@ -50,7 +50,7 @@ h1 {
 }
 
 .driver-tile {
-  width: 100%;
+  width: 90%;
   border-radius: 6px;
   padding: 4px 6px;
   margin-bottom: 4px;
@@ -88,7 +88,7 @@ h1 {
 }
 
 .standing-tile {
-  width: 100%;
+  width: 90%;
   border-radius: 6px;
   padding: 4px 6px;
   background: var(--bg-card);
