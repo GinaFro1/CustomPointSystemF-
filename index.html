@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Custom Point System Maker - F!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>F1 Season Results Viewer</h1>
+  <label for="yearSelect">Select Year:</label>
+  <select id="yearSelect"></select>
+
+  <div class="points-config">
+    <h3>Custom Points Config</h3>
+    <div id="pointsMessage" class="points-message"></div>
+
+    <div class="position-config">
+      <label for="positionSelect">Select Position:</label>
+      <select id="positionSelect"></select>
+      <input type="number" id="positionPoints" placeholder="Points" class="no-arrows">
+    </div>
+
+    <div class="extra-points">
+      <label>Pole:</label>
+      <input type="number" id="polePoints" value="0" class="no-arrows">
+      <label>Fastest Lap:</label>
+      <input type="number" id="flPoints" value="0" class="no-arrows">
+    </div>
+  </div>
+
+  <div id="results"></div>
+
+  <div class="standings">
+    <div class="standing-card">
+      <h3>Drivers Standings (Custom)</h3>
+      <div id="driverStandingsCustom"></div>
+    </div>
+    <div class="standing-card">
+      <h3>Drivers Standings (Official)</h3>
+      <div id="driverStandingsOfficial"></div>
+    </div>
+    <div class="standing-card">
+      <h3>Teams Standings (Custom)</h3>
+      <div id="teamStandingsCustom"></div>
+    </div>
+    <div class="standing-card">
+      <h3>Teams Standings (Official)</h3>
+      <div id="teamStandingsOfficial"></div>
+    </div>
+  </div>
+
+  <div class="chart-section">
+    <h3>Custom Standings Progression</h3>
+    <div class="chart-controls">
+      <label>Select Driver 1:</label>
+      <select id="driver1Select"></select>
+      <label>Select Driver 2:</label>
+      <select id="driver2Select"></select>
+      <button onclick="focusDriver()">Focus</button>
+      <button onclick="resetFocus()">Reset</button>
+    </div>
+    <canvas id="pointsChart"></canvas>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
